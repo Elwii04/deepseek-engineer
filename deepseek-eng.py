@@ -88,9 +88,9 @@ def initialize_client():
             console.print("[bold yellow]Invalid choice, defaulting to first model.[/bold yellow]")
             chosen_model = models[0]
 
-        # Explicitly disable proxy usage to avoid compatibility issues with
-        # older httpx versions that don't support the parameter.
-        http_client = httpx.Client(proxies=None)
+        # Explicitly disable proxy usage. Using ``trust_env=False`` works
+        # across httpx versions without triggering unsupported arguments.
+        http_client = httpx.Client(trust_env=False)
         client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama", http_client=http_client)
     else:
         api_key = os.getenv("DEEPSEEK_API_KEY")
