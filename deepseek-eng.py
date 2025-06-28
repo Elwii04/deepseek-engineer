@@ -7,6 +7,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
+import httpx
 import requests
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -87,7 +88,10 @@ def initialize_client():
             console.print("[bold yellow]Invalid choice, defaulting to first model.[/bold yellow]")
             chosen_model = models[0]
 
-        client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama")
+        # Explicitly disable proxy usage to avoid compatibility issues with
+        # older httpx versions that don't support the parameter.
+        http_client = httpx.Client(proxies=None)
+        client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama", http_client=http_client)
     else:
         api_key = os.getenv("DEEPSEEK_API_KEY")
         if not api_key:
