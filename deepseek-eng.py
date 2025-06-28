@@ -7,6 +7,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
+import requests
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from rich.console import Console
@@ -31,10 +32,10 @@ prompt_session = PromptSession(
 # 1. Configure OpenAI client and load environment variables
 # --------------------------------------------------------------------------------
 load_dotenv()  # Load environment variables from .env file
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)  # Configure for DeepSeek API
+
+# Global client and model name to be set at runtime
+client: Optional[OpenAI] = None
+chosen_model = "deepseek-reasoner"
 
 # --------------------------------------------------------------------------------
 # 2. Define our schema using Pydantic for type safety
@@ -49,6 +50,51 @@ class FileToEdit(BaseModel):
     new_snippet: str
 
 # Remove AssistantResponse as we're using function calling now
+
+# ---------------------------------------------------------------------------
+# Client initialization helpers
+# ---------------------------------------------------------------------------
+def initialize_client():
+    """Ask the user which backend to use and configure the OpenAI client."""
+    global client, chosen_model
+
+    choice = prompt_session.prompt(
+        "Use [d]eepseek API or [o]llama? ").strip().lower()
+    if choice.startswith("o"):
+        base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        try:
+            resp = requests.get(f"{base_url}/api/tags")
+            resp.raise_for_status()
+            data = resp.json()
+            models = [m.get("name") for m in data.get("models", [])]
+        except Exception as e:
+            console.print(f"[bold red]Error contacting Ollama: {e}[/bold red]")
+            sys.exit(1)
+        if not models:
+            console.print("[bold red]No models found via Ollama.[/bold red]")
+            sys.exit(1)
+
+        console.print("\n[bold blue]Available Ollama models:[/bold blue]")
+        for idx, m in enumerate(models, 1):
+            console.print(f"  {idx}. {m}")
+
+        selection = prompt_session.prompt("Select model (name or number): ").strip()
+        if selection.isdigit() and 1 <= int(selection) <= len(models):
+            chosen_model = models[int(selection) - 1]
+        elif selection in models:
+            chosen_model = selection
+        else:
+            console.print("[bold yellow]Invalid choice, defaulting to first model.[/bold yellow]")
+            chosen_model = models[0]
+
+        client = OpenAI(base_url=f"{base_url}/v1", api_key="ollama")
+    else:
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            console.print("[bold red]DEEPSEEK_API_KEY not set in environment.[/bold red]")
+            sys.exit(1)
+        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+        chosen_model = "deepseek-reasoner"
 
 # --------------------------------------------------------------------------------
 # 2.1. Define Function Calling Tools
@@ -586,7 +632,7 @@ def stream_openai_response(user_message: str):
     # Remove the old file guessing logic since we'll use function calls
     try:
         stream = client.chat.completions.create(
-            model="deepseek-reasoner",
+            model=chosen_model,
             messages=conversation_history,
             tools=tools,
             max_completion_tokens=64000,
@@ -695,7 +741,7 @@ def stream_openai_response(user_message: str):
                 console.print("\n[bold bright_blue]🔄 Processing results...[/bold bright_blue]")
                 
                 follow_up_stream = client.chat.completions.create(
-                    model="deepseek-reasoner",
+                    model=chosen_model,
                     messages=conversation_history,
                     tools=tools,
                     max_completion_tokens=64000,
@@ -773,6 +819,9 @@ def main():
         title_align="left"
     ))
     console.print()
+
+    # Configure backend (DeepSeek API or Ollama)
+    initialize_client()
 
     while True:
         try:

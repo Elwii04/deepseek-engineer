@@ -78,8 +78,9 @@ For when you want to preload files into conversation context:
 ## Getting Started
 
 ### Prerequisites
-1. **DeepSeek API Key**: Get your API key from [DeepSeek Platform](https://platform.deepseek.com)
+1. **DeepSeek API Key** (only for the cloud API): Get your API key from [DeepSeek Platform](https://platform.deepseek.com)
 2. **Python 3.11+**: Required for optimal performance
+3. *(Optional)* **Ollama** running locally if you want to use a self-hosted model
 
 ### Installation
 
@@ -89,9 +90,8 @@ For when you want to preload files into conversation context:
    cd deepseek-engineer
    ```
 
-2. **Set up environment**:
+2. **Set up environment** (only needed for DeepSeek API):
    ```bash
-   # Create .env file
    echo "DEEPSEEK_API_KEY=your_api_key_here" > .env
    ```
 
@@ -261,6 +261,10 @@ or
 ```bash
 python3 deepseek-eng.py
 ```
+
+When the program starts, it will prompt you to choose between using the
+cloud **DeepSeek API** or a local model via **Ollama**. If you pick Ollama,
+the available models from your local server will be listed for selection.
 
 ## License
 
